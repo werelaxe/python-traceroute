@@ -1,9 +1,21 @@
 import socket
 import time
 import argparse
-
+import sys
+import ctypes
+import os
 
 PORT = 33434
+
+
+def check_rights():
+    try:
+        is_admin = os.getuid() == 0
+    except AttributeError:
+        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+    if not is_admin:
+        print("traceroute requires root rights")
+        sys.exit(0)
 
 
 def gethostbyaddr(ip_addr):
@@ -45,7 +57,11 @@ def ping_request(destination, ttl, packet_size):
 
 
 def traceroute(target, max_hops=32, packet_size=60):
-    destination = socket.gethostbyname(target)
+    try:
+        destination = socket.gethostbyname(target)
+    except socket.gaierror:
+        print("Unknown address or name: {}".format(target))
+        sys.exit(0)
     print("traceroute to {} ({}), {} hops max, {} byte packets".format(target, destination, max_hops, packet_size))
     for ttl in range(1, max_hops + 1):
         ping_result = ping_request(destination, ttl, packet_size)
@@ -55,4 +71,11 @@ def traceroute(target, max_hops=32, packet_size=60):
 
 
 if __name__ == '__main__':
-    traceroute("google-public-dns-a.google.com", 30)
+    check_rights()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("target", action="store", help="target")
+    parser.add_argument("-m", "--max-hops", type=int, action="store", default=32)
+    args = vars(parser.parse_args(sys.argv[1:]))
+    traceroute(args["target"], args["max_hops"])
+
+
